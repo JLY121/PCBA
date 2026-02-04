@@ -1,6 +1,13 @@
 import sys
 sys.path.append("../")
 
+import warnings
+import logging
+warnings.filterwarnings("ignore", category=UserWarning, message=r"To copy construct from a tensor, it is recommended to use sourceTensor\.clone\(\)\.detach\(\).*",
+)
+warnings.filterwarnings( "ignore",category=UserWarning,  message=r"Glyph .* missing from font\(s\) .*",)
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+
 import wandb
 # import swanlab
 # swanlab.sync_wandb()

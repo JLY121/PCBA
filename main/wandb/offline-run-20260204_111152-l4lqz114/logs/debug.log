@@ -1,0 +1,6 @@
+2026-02-04 11:11:52,417 INFO    MainThread:2660856 [wandb_init.py:setup_run_log_directory():717] Logging user logs to /data/jly/PCBA/main/wandb/offline-run-20260204_111152-l4lqz114/logs/debug.log
+2026-02-04 11:11:52,417 INFO    MainThread:2660856 [wandb_init.py:setup_run_log_directory():718] Logging internal logs to /data/jly/PCBA/main/wandb/offline-run-20260204_111152-l4lqz114/logs/debug-internal.log
+2026-02-04 11:11:52,417 INFO    MainThread:2660856 [wandb_init.py:init():844] calling init triggers
+2026-02-04 11:11:52,417 INFO    MainThread:2660856 [wandb_init.py:init():849] wandb.init called with sweep_config: {}
+config: {'_wandb': {}}
+2026-02-04 11:11:52,419 INFO    MainThread:2660856 [wandb_config.py:__setitem__():154] [no run ID] config set data_folder = ./datasets - <bound method Run._config_callback of <wandb.sdk.wandb_run.Run object at 0x72b39859bf70>>

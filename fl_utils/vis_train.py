@@ -51,7 +51,7 @@ def _default_root_dir() -> str:
     # fl_utils/vis_train.py -> 项目根目录 -> saved/训练过程可视化
     here = os.path.dirname(os.path.abspath(__file__))
     proj_root = os.path.abspath(os.path.join(here, ".."))
-    return os.path.join(proj_root, "saved", "训练过程可视化")
+    return os.path.join(proj_root, "saved", "train_process_visualization")
 
 
 @dataclass

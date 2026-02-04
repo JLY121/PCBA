@@ -1,15 +1,9 @@
-SupCon_round1:
-  value: 2
-SupCon_round2:
-  value: 2
 VWM_detection_threshold:
-  value: 95.0
-adv_loss:
-  value: ce
+  value: 85.0
 agg_method:
   value: avg
 attack_type:
-  value: Our
+  value: None
 attacker_lr_decay:
   value: 5
 attacker_method:
@@ -20,30 +14,32 @@ batch_size:
   value: 64
 bkd_ratio:
   value: 0.25
-blend_ratio:
-  value: 1.0
 clip_factor:
   value: 1
+datadir:
+  value: /Data/JLY/A3FL/main/datasets
 dataset:
   value: cifar10
 decay:
   value: 0.0005
 dirichlet_alpha:
   value: 0.9
-dm_adv_K:
-  value: 1
-dm_adv_epochs:
-  value: 5
-dm_adv_model_count:
-  value: 1
-dm_type:
-  value: none
-down_scale_weight:
-  value: 1
 epochs:
-  value: 3101
+  value: 3001
 eta:
   value: 1.0
+eval_batch_size:
+  value: 100
+feddmc_min_cluster_size:
+  value: 3
+feddmc_pca_dim:
+  value: 10
+feddmc_save_tree:
+  value: false
+feddmc_vote_threshold:
+  value: 0.5
+feddmc_window_size:
+  value: 10
 gamma:
   value: 1
 global_lr:
@@ -62,18 +58,10 @@ image_size:
   value: 32
 in_channels:
   value: 3
-is_Blend:
-  value: false
-is_optimize_mask:
-  value: true
-is_optimize_trigger:
-  value: true
 is_poison:
-  value: true
-is_supcon:
-  value: true
+  value: false
 load_benign_model:
-  value: true
+  value: false
 lr:
   value: 0.01
 lr_method:
@@ -81,15 +69,13 @@ lr_method:
 malicious_update_method:
   value: label
 model:
-  value: vgg11_bn
+  value: resnet18
 momentum:
   value: 0.9
-noise_loss_lambda:
-  value: 0.01
-noise_model_count:
-  value: 9
 num_adversaries:
   value: 1
+num_classes:
+  value: 10
 num_sampled_participants:
   value: 10
 num_total_participants:
@@ -109,9 +95,7 @@ sample_method:
 sample_poison_ratio:
   value: 0
 save_every:
-  value: 3333
-scale_weight:
-  value: 6
+  value: 100
 seed:
   value: 0
 target_class:
@@ -120,18 +104,8 @@ target_lr:
   value: 0.02
 test_batch_size:
   value: 1024
-train_classifier:
-  value: true
-trigger_epsilon:
-  value: 2.0
-trigger_lr:
-  value: 0.01
-trigger_outter_epochs:
-  value: 200
-trigger_size:
-  value: 49
 two_stage_training:
-  value: true
+  value: false
 watermarking_end_round:
   value: 3000
 watermarking_mu:
@@ -139,6 +113,6 @@ watermarking_mu:
 watermarking_round_interval:
   value: 1
 watermarking_start_round:
-  value: 0
+  value: 100
 wp_factor:
   value: 0.05
