@@ -15,7 +15,7 @@ pip install -r requirement.txt
 ```
 cd main
 
-python clean.py --gpu 0 --params configs/config.yaml
+python clean.py --gpu 0 --params configs/pretrain_cifar10_resnet18.yaml
 ```
 
 ### Citation
