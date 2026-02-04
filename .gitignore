@@ -1,5 +1,6 @@
 /main/datasets/**
 /main/wandb/**
 **/__pycache__/
+*.py[cod]
 
 
