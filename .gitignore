@@ -1,6 +1,4 @@
 /main/datasets/**
-
-# 忽略 wandb 运行日志/离线数据（不上传）
 /main/wandb/**
 
 
