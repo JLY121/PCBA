@@ -2,5 +2,7 @@
 /main/wandb/**
 **/__pycache__/
 *.py[cod]
+/saved/train_process_visualization/**
+!/saved/train_process_visualization/.gitkeep
 
 

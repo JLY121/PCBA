@@ -30,79 +30,56 @@ class Our_Attacker:
 
     def setup(self):
         self.handcraft_rnds = 0
-        #=====根据数据集的图像尺寸，初始化触发器和掩码=====
-        image_size = self.helper.config.image_size  #指定图像尺寸
-        in_channels = self.helper.config.in_channels  #指定输入通道数
+        image_size = self.helper.config.image_size  
+        in_channels = self.helper.config.in_channels 
         self.trigger = torch.ones((1,in_channels,image_size,image_size), requires_grad=False, device = 'cuda')*0.5
-        self.mask = torch.zeros_like(self.trigger) #触发器的掩码
+        self.mask = torch.zeros_like(self.trigger) 
         self.mask = self.mask.cuda()
-        self.trigger0 = self.trigger.clone() # 保存初始触发器
+        self.trigger0 = self.trigger.clone() 
     
     def get_adv_model(self, model, dl, trigger, mask):
-        """
-        获取对抗全局模型 (adversarial global model)，通过本地数据集和触发器对全局模型进行训练。
-        计算对抗模型与原始模型之间的梯度相似性，以衡量模型对触发器的鲁棒性。
 
-        参数:
-        - model: 当前全局模型
-        - dl: 数据加载器，包含本地训练数据
-        - trigger: 当前触发器模式
-        - mask: 触发器掩码，用于指定触发器的位置
-
-        返回:
-        - adv_model: 对抗全局模型
-        - sim_sum/sim_count: 对抗模型和原始模型梯度之间的余弦相似性
-        """
-        adv_model = copy.deepcopy(model)  # 深拷贝当前模型，创建对抗模型
-        adv_model.train()  # 切换模型到训练模式
+        adv_model = copy.deepcopy(model)  
+        adv_model.train()  
         ce_loss = torch.nn.CrossEntropyLoss()  # 定义交叉熵损失函数
-        adv_opt = torch.optim.SGD(  # 定义对抗模型的优化器，使用 SGD
+        adv_opt = torch.optim.SGD(  
             adv_model.parameters(),
-            lr=0.01,  # 学习率
+            lr=0.01,  
             momentum=0.9,  # 动量
-            weight_decay=5e-4  # 权重衰减，防止过拟合
+            weight_decay=5e-4  
         )
 
-        # 对抗模型的训练过程
-        for _ in range(self.helper.config.dm_adv_epochs):  # 对抗训练的迭代次数
-            for inputs, labels in dl:  # 遍历本地数据加载器
-                inputs, labels = inputs.cuda(), labels.cuda()  # 将数据加载到 GPU
-                # 应用触发器模式到输入数据
+        for _ in range(self.helper.config.dm_adv_epochs):  
+            for inputs, labels in dl:  
+                inputs, labels = inputs.cuda(), labels.cuda()  
                 inputs = trigger * mask + (1 - mask) * inputs
-                outputs = adv_model(inputs)  # 通过对抗模型进行前向传播
-                loss = ce_loss(outputs, labels)  # 计算损失（目标是训练对抗模型识别触发器样本）
-                adv_opt.zero_grad()  # 清空梯度
-                loss.backward()  # 反向传播计算梯度
-                adv_opt.step()  # 更新对抗模型的参数
+                outputs = adv_model(inputs)  
+                loss = ce_loss(outputs, labels)  
+                adv_opt.zero_grad()  
+                loss.backward()  
+                adv_opt.step()  
 
-        # 计算对抗模型和原始模型的梯度余弦相似性
-        # 原始实现仅依据参数名中是否包含 'conv' 来筛选卷积层（适用于 ResNet），
-        # 在 VGG 等网络中卷积层一般命名为 features.*.weight，不含 'conv'，会导致 sim_count 为 0。
-        sim_sum = 0.  # 累积相似性总和
-        sim_count = 0.  # 累积的计算次数
-        cos_loss = torch.nn.CosineSimilarity(dim=0, eps=1e-08)  # 定义余弦相似性计算
+        sim_sum = 0.  
+        sim_count = 0.  
+        cos_loss = torch.nn.CosineSimilarity(dim=0, eps=1e-08)  
 
         model_params_dict = dict(model.named_parameters())
         adv_params_dict = dict(adv_model.named_parameters())
 
-        # 第一轮：优先只用“卷积层”权重
-        # - ResNet: 名称中包含 'conv'
-        # - VGG 等: 参数梯度为 4 维张量（[out_c, in_c, kH, kW]）
-        for name, p_adv in adv_model.named_parameters():  # 遍历对抗模型的所有参数
+        for name, p_adv in adv_model.named_parameters():  
             if name not in model_params_dict:
                 continue
             p_org = model_params_dict[name]
             if p_adv.grad is None or p_org.grad is None:
                 continue
 
-            is_conv_like = ('conv' in name) or (p_adv.grad.dim() == 4)  # VGG的对应卷积层是4维张量，可以作为判别条件
+            is_conv_like = ('conv' in name) or (p_adv.grad.dim() == 4)  
             if not is_conv_like:
                 continue
 
             sim_count += 1
             sim_sum += cos_loss(p_adv.grad.reshape(-1), p_org.grad.reshape(-1))
 
-        # 若未找到任何“卷积层”，则退而求其次：对所有有梯度的参数做平均相似性，避免除零
         if sim_count == 0:
             for name, p_adv in adv_model.named_parameters():
                 if name not in model_params_dict:
@@ -113,7 +90,6 @@ class Our_Attacker:
                 sim_count += 1
                 sim_sum += cos_loss(p_adv.grad.reshape(-1), p_org.grad.reshape(-1))
 
-        # 理论上此时 sim_count > 0；若极端情况下仍为 0，则返回 0 相似性以避免报错
         if sim_count == 0:
             avg_sim = torch.tensor(0.0, device=next(adv_model.parameters()).device)
         else:

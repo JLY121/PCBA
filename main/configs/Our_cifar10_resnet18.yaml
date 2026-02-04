@@ -16,7 +16,7 @@ parameters:
     model:
         value: 'resnet18'
     agg_method:
-        value: 'avg' # avg/clip/multi_krum/crfl/foolsgold/flame/feddmc/indicator/alignins
+        value: 'avg' # avg/clip/multi_krum/crfl/foolsgold/flame/feddmc/alignins
     is_poison:
         value: true
     load_benign_model:
