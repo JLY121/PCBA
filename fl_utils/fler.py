@@ -19,16 +19,12 @@ import copy
 import os
 from math import ceil
 import pickle
-#===用于保存触发器图片===
+# 保存触发器图片（部分攻击方法可能会用到）
 from PIL import Image
-# ---导入计算正交性的函数---
-from .eval_Orth_Line.eval_orthogonality import eval_ood_gradient_norm_orth
 import csv
 
 from .select_attacker import AttackerDispatcher
 from .select_aggregator import Aggregator
-# ---导入Indicator防御方法---
-from .defender.indicator import pre_process_watermark
 from .vis_train import TrainProcessVisualizer
 
 class FLer:
@@ -41,24 +37,22 @@ class FLer:
         self.attack_sum = 0 
         self.aggregator = Aggregator(self.helper)
         self.start_time = time.time()
-        # ===训练过程可视化（CSV + 曲线图），每次训练自动新建保存子文件夹===
+        # 训练过程可视化（CSV + 曲线图），每次训练自动新建保存子文件夹
         self.train_visualizer = TrainProcessVisualizer(self.helper.config)
-        '''用攻击者选择分支来完成不同attacker的实例化'''
         self.attacker_dispatcher = AttackerDispatcher(self.helper)
         self.attacker = self.attacker_dispatcher.get_attacker()
 
-        # ---确定恶意客户端的方法---
         if self.helper.config.sample_method == 'random_updates':
             self.init_advs()
-        if self.helper.config.load_benign_model: # and self.helper.config.is_poison:
+        if self.helper.config.load_benign_model:
             model_path = f'../saved/benign_new_{self.helper.config.model}/{self.helper.config.dataset}_{self.helper.config.poison_start_epoch}_{self.helper.config.agg_method}.pt'
             self.helper.global_model.load_state_dict(torch.load(model_path, map_location = 'cuda')['model'])
             loss,acc = self.test_once()
             print(f'Load benign model {model_path}, acc {acc:.3f}')
         return
     
-    #用于获取恶意客户端
     def init_advs(self):
+        """random_updates 采样方式下：预先确定哪些更新步骤由恶意客户端触发。"""
         num_updates = self.helper.config.num_sampled_participants * self.helper.config.poison_epochs 
         num_poison_updates = ceil(self.helper.config.sample_poison_ratio * num_updates)
         updates = list(range(num_updates))
@@ -130,13 +124,13 @@ class FLer:
             'lr': lr
             }
         wandb.log(log_dict)
-        print('|'.join([f'{k}:{float(log_dict[k]):.3f}' for k in log_dict]))  #====终端日志输出语句====
+        print('|'.join([f'{k}:{float(log_dict[k]):.3f}' for k in log_dict]))
         self.save_model(epoch, log_dict)
-        # ===追加CSV记录并更新可视化图表（保存到 saved/训练过程可视化/时间_name/）===
-        # try:
-        #     self.train_visualizer.log(epoch, loss, acc, bkd_loss, bkd_acc, lr)
-        # except Exception as e:
-        #     print(f"[TrainProcessVisualizer] 记录/可视化失败（不影响训练）：{e}")
+        # 追加 CSV 并更新可视化图表（失败不影响训练）
+        try:
+            self.train_visualizer.log(epoch, loss, acc, bkd_loss, bkd_acc, lr)
+        except Exception as e:
+            print(f"[TrainProcessVisualizer] 记录/可视化失败（不影响训练）：{e}")
 
     def save_model(self, epoch, log_dict):
         if epoch % self.helper.config.save_every == 0:
@@ -144,7 +138,6 @@ class FLer:
             if self.helper.config.is_poison:
                 pass
             else:
-                # assert self.helper.config.lr_method == 'linear'
                 save_path = f'../saved/benign_new_{self.helper.config.model}/{self.helper.config.dataset}_{epoch}_{self.helper.config.agg_method}.pt'
                 torch.save(log_dict, save_path)
                 print(f'Model saved at {save_path}')
@@ -171,44 +164,17 @@ class FLer:
         print('Training')
         accs = []
         asrs = []
-        self.local_asrs = {}  # 用于存储本地客户端的后门攻击成功率
-        attack_activated = False  # 标记是否已激活攻击
+        self.local_asrs = {}  # 存储各本地客户端的后门攻击成功率
         
         for epoch in range(-2, self.helper.config.epochs):
             sampled_participants = self.sample_participants(epoch)
-            # ---攻击时刻检测方法实现-----
-                #--检查是否有恶意客户端--
-            # has_adversary = self.contain_adversary_preTrain(epoch, sampled_participants) >= 0  
-            # if has_adversary:
-            #     print("===存在攻击者，计算不同样本的梯度夹角====")
-            #     # angle = eval_ood_gradient_norm_orth(self.helper.config, self.helper.global_model, self.helper.train_data[0])
-            #     # 不传入客户端数据加载器时，优先使用 Helper 已构建的测试集作为ID数据来源（保持与训练/评估一致的 transforms）
-            #     angle = eval_ood_gradient_norm_orth(self.helper.config, self.helper.global_model, helper=self.helper)
-            #     self._save_ood_orth_to_csv(epoch, angle)
-            
-            #====用于Indicator防御方法====
-            # if self.helper.config.agg_method == 'indicator':
-            #     is_watermark_round, before_bn_stats, after_bn_stats = pre_process_watermark(
-            #         self.helper.global_model, self.helper, epoch)
-            #     if is_watermark_round:
-            #         self.helper.after_wm_injection_bn_stats_dict = after_bn_stats  # 保存注入水印后的BN层参数
-            #     else:
-            #         self.helper.after_wm_injection_bn_stats_dict = None
-            #====训练一轮====
             weight_accumulator, weight_accumulator_by_client = self.train_once(epoch, sampled_participants)
-            #====聚合模型====
             self.aggregator.agg(self.helper.global_model, weight_accumulator, weight_accumulator_by_client, self.helper.client_models, sampled_participants, epoch)
-            # ===在特定轮次保存聚合后的模型、触发器、掩码(需要时再启用即可)====
-            # self.save_poison_artifacts(epoch)
             
             loss, acc = self.test_once()
             bkd_loss, bkd_acc = self.test_once(poison = self.helper.config.is_poison)
-            #====记录日志，记录在wandb上（终端输出的test_acc和loss也定义在这里面）====
             lr = self.get_lr(epoch)
             self.log_once(epoch, loss, acc, bkd_loss, bkd_acc, lr)
-            # accs.append(acc)
-            # asrs.append(bkd_acc)
-            # self.save_res(accs, asrs)
 
     def write_to_file(self, file_path, content, mode='a'):
         try:
@@ -218,22 +184,21 @@ class FLer:
             print(f"写入文件时出错: {e}")   
 
     def train_once(self, epoch, sampled_participants):
-        # 1. 初始化权重累加器和客户端更新列表
         weight_accumulator = self.create_weight_accumulator()
         weight_accumulator_by_client = []
         client_count = 0
         attacker_idxs = []
         global_model_copy = self.create_global_model_copy()
         local_asr = []
-        # 2. 检查这轮的参与者中是否包含攻击者（adversary）
-        first_adversary = self.contain_adversary(epoch, sampled_participants) #返回的是攻击者的ID？
+        first_adversary = self.contain_adversary(epoch, sampled_participants)
         if first_adversary >= 0 and ('sin' in self.helper.config.attacker_method):
             model = self.helper.local_model
             self.copy_params(model, global_model_copy)
-            self.attacker.search_trigger(model, self.helper.train_data[first_adversary], 'outter', first_adversary, epoch)  #self.helper.train_data是一个数组，里面存储多个数据加载器，每个数据加载器对应一个客户端
-            print("========(一)JLY:触发器搜索优化完成==========")
+            self.attacker.search_trigger(model, self.helper.train_data[first_adversary], 'outter', first_adversary, epoch)
+            print("触发器搜索优化完成")
         if first_adversary >= 0:
-            self.attack_sum += 1  # ===记录整个训练过程中的攻击次数====
+            # 统计训练过程中触发攻击的轮次
+            self.attack_sum += 1
             print(f'Epoch {epoch}, poisoning by {first_adversary}, attack sum {self.attack_sum}.')
         else:
             print(f'Epoch {epoch}, no adversary.')
@@ -259,7 +224,6 @@ class FLer:
             self.helper.client_models[participant_id].load_state_dict(model.state_dict())
             client_count += 1
         return weight_accumulator, weight_accumulator_by_client
-        #===============================================================
 
     def norm_of_update(self, single_wa_by_c, attacker_idxs):
         cossim = torch.nn.CosineSimilarity(dim=0)
@@ -285,23 +249,21 @@ class FLer:
         if self.helper.config.is_poison and epoch < self.helper.config.poison_epochs and epoch >= 0:
             if self.helper.config.sample_method == 'random':
                 for p in sampled_participants:
-                    if p < self.helper.config.num_adversaries: # 检查客户端是否是恶意客户端
-                        return p # 随机采样的客户端中，前P个就作为恶意客户端
+                    # 约定：客户端 id < num_adversaries 视为恶意客户端
+                    if p < self.helper.config.num_adversaries:
+                        return p
             elif self.helper.config.sample_method == 'random_updates':
                 if epoch in self.advs:
                     return self.advs[epoch][0]
         return -1
 
-        # -----------用于从头开始训练的恶意客户端检查----------------------
     def contain_adversary_preTrain(self, epoch, sampled_participants):
         """
-        用于从头开始训练的情况（is_poison=false, load_benign_model=false）
-        在整个训练过程中都检查是否有恶意客户端参与
+        从头开始训练时（例如未加载良性模型）用于检查本轮是否包含恶意客户端。
         """
-        # 从头开始训练时，在整个训练过程中都可能有恶意客户端
         if self.helper.config.sample_method == 'random':
             for p in sampled_participants:
-                if p < self.helper.config.num_adversaries: # 只要编号小于恶意客户端个数的，都当做恶意客户端
+                if p < self.helper.config.num_adversaries:
                     return p
         elif self.helper.config.sample_method == 'random_updates':
             if epoch in self.advs:
@@ -319,7 +281,7 @@ class FLer:
         return n
 
     def if_adversary(self, epoch, participant_id, sampled_participants):
-        # 恢复is_poison依赖，只有攻击模式下才进行后门训练
+        # 只有攻击模式（is_poison）且在攻击轮次范围内才进行后门训练
         if self.helper.config.is_poison and epoch < self.helper.config.poison_epochs and epoch >= 0:
             if self.helper.config.sample_method == 'random' and participant_id < self.helper.config.num_adversaries:
                 return True 
@@ -330,15 +292,15 @@ class FLer:
                             return True
         return False
 
-    # 可以用于模型的参数拷贝
     def create_local_model_copy(self, model):
+        """返回模型参数的冻结拷贝（用于后续对比/还原）。"""
         model_copy = dict()
         for name, param in model.named_parameters():
             model_copy[name] = model.state_dict()[name].clone().detach().requires_grad_(False)
         return model_copy
 
     def create_global_model_copy(self):
-        '''返回的是全局模型的参数字典'''
+        """返回全局模型参数的冻结拷贝。"""
         global_model_copy = dict()
         for name, param in self.helper.global_model.named_parameters():
             global_model_copy[name] = self.helper.global_model.state_dict()[name].clone().detach().requires_grad_(False)
@@ -349,7 +311,7 @@ class FLer:
     def create_weight_accumulator(self):
         weight_accumulator = dict()
         for name, data in self.helper.global_model.state_dict().items():
-            ### don't scale tied weights:
+            # tied weights/特殊字段不参与累加
             if name == 'decoder.weight' or '__'in name:
                 continue
             weight_accumulator[name] = torch.zeros_like(data)
@@ -373,11 +335,11 @@ class FLer:
         for internal_epoch in range(self.helper.config.retrain_times):
             total_loss = 0.0
             for inputs, labels in self.helper.train_data[participant_id]:
-                if inputs.size(0) == 1:  # =====如果输入的batchsize为1，则跳过，避免BN层报错
-                    # print("跳过了只有一个数据的批次")
+                # 避免 batchsize=1 触发 BatchNorm 异常
+                if inputs.size(0) == 1:
                     continue
                 inputs, labels = inputs.cuda(), labels.cuda()
-                output = model(inputs)  #==这里会因为输入通道数的问题报错==
+                output = model(inputs)
                 loss = self.criterion(output, labels)
 
                 optimizer.zero_grad()
@@ -387,7 +349,7 @@ class FLer:
     def scale_up(self, model, curren_num_adv):
         clip_rate = 2/curren_num_adv
         for key, value in model.state_dict().items():
-            #### don't scale tied weights:
+            # tied weights/特殊字段不参与缩放
             if  key == 'decoder.weight' or '__'in key:
                 continue
             target_value = self.helper.global_model.state_dict()[key]
@@ -403,14 +365,14 @@ class FLer:
                 tmp_epoch += self.helper.config.poison_start_epoch
             lr = self.helper.config.lr * (self.helper.config.gamma**tmp_epoch)
         elif self.helper.config.lr_method == 'linear':
-            # if self.helper.config.is_poison or epoch > 1900:
-            if self.helper.config.is_poison: # ← 只要攻击开始，就把学习率设置为固定值--
+            # 攻击阶段使用固定学习率
+            if self.helper.config.is_poison:
                 if self.helper.config.dataset == "GTSRB":
                     lr = 0.005
                 elif self.helper.config.dataset == "cifar100":
                     lr = 0.002
                 else:
-                    lr = 0.002 # ---修改攻击以后的学习率，原来为0.002-----
+                    lr = 0.002
             else:
                 lr_init = self.helper.config.lr
                 target_lr = self.helper.config.target_lr
@@ -421,34 +383,27 @@ class FLer:
                 if lr <= 0.002:
                     lr = 0.002
         elif self.helper.config.lr_method == 'warmup_cosine':
-            # 线性预热 + 余弦退火学习率调度
             import math
-            
-            # 参数设置
             total_epochs = self.helper.config.epochs
-            warmup_epochs = int(total_epochs / 2)  # 预热轮次为总轮次的1/2
+            warmup_epochs = int(total_epochs / 2)  
             initial_lr = self.helper.config.lr
             peak_lr = self.helper.config.target_lr
-            min_lr = 0.0  # 最低学习率
-            
-            # 阶段一：线性预热 (epoch 0 to warmup_epochs-1)
+            min_lr = 0.0  
             if epoch < warmup_epochs:
                 progress = epoch / warmup_epochs
                 lr = initial_lr + progress * (peak_lr - initial_lr)
             
-            # 阶段二：余弦退火 (epoch warmup_epochs to total_epochs-1)
             else:
                 decay_epochs = total_epochs - warmup_epochs
                 current_decay_epoch = epoch - warmup_epochs
                 progress = current_decay_epoch / decay_epochs
                 
-                # 余弦退火的数学公式
                 cosine_decay = 0.5 * (1 + math.cos(math.pi * progress))
                 lr = min_lr + (peak_lr - min_lr) * cosine_decay
             if lr <= 0.002:
                 lr = 0.002
-        # else:
-        #     raise NotImplementedError
+        else:
+            raise NotImplementedError
         return lr
 
     def _sample_participants_continuous_attack(self, epoch):
@@ -459,17 +414,14 @@ class FLer:
         num_sampled = self.helper.config.num_sampled_participants
         num_total = self.helper.config.num_total_participants
 
-        # 1. 从攻击者池中随机选择一个攻击者
         adversary_ids = list(range(num_adversaries))
         chosen_adversary = random.choice(adversary_ids)
         
-        # 2. 从除已选攻击者之外的所有客户端中随机选择剩余的参与者
         other_participants_pool = [p for p in range(num_total) if p != chosen_adversary]
         num_to_sample_others = num_sampled - 1
         
         sampled_others = random.sample(other_participants_pool, num_to_sample_others)
         
-        # 3. 合并并打乱顺序
         sampled_participants = [chosen_adversary] + sampled_others
         random.shuffle(sampled_participants)
         
@@ -484,7 +436,7 @@ class FLer:
         返回:
         - sampled_participants: 选中的客户端ID列表
         """
-        # --- 新增：连续攻击逻辑 ---
+        # 连续攻击：确保每轮至少有一个攻击者
         if hasattr(self.helper.config, 'continuous_attack') and \
            self.helper.config.continuous_attack and \
            self.helper.config.is_poison and \
@@ -493,82 +445,20 @@ class FLer:
             return self._sample_participants_continuous_attack(epoch)
         
         if self.helper.config.sample_method in ['random', 'random_updates']:
-            # 1. 随机采样客户端
-            # 使用 random.sample 从所有可用的客户端中随机选择指定数量的客户端
             sampled_participants = random.sample(
-                range(self.helper.config.num_total_participants),  # 总的客户端数量
-                self.helper.config.num_sampled_participants        # 每轮要采样的客户端数量
+                range(self.helper.config.num_total_participants),
+                self.helper.config.num_sampled_participants
             )
         elif self.helper.config.sample_method == 'fix-rate':
-            # 2. 固定采样策略
-            # 根据固定的**起始索引**和**客户端总数**，按固定的顺序采样客户端
-            start_index = (epoch * self.helper.config.num_sampled_participants) % self.helper.config.num_total_participants  # 计算起始索引
-            sampled_participants = list(range(start_index, start_index + self.helper.config.num_sampled_participants)) # 采样客户端
+            start_index = (epoch * self.helper.config.num_sampled_participants) % self.helper.config.num_total_participants
+            sampled_participants = list(range(start_index, start_index + self.helper.config.num_sampled_participants))
         else:
-            # 3. 不支持的采样方法
             raise NotImplementedError  
         
-        # 4. 确认采样的客户端数量是否与配置中的一致
         assert len(sampled_participants) == self.helper.config.num_sampled_participants
         
-        return sampled_participants  # 返回当前轮次选中的客户端列表
+        return sampled_participants
     
     def copy_params(self, model, target_params_variables):
         for name, layer in model.named_parameters():
             layer.data = copy.deepcopy(target_params_variables[name])
-    
-    # ---用于保存包含触发器、掩码、模型的.pt文件，用于可视化---
-    def save_poison_artifacts(self, epoch):
-        """
-        在特定轮次保存聚合后的全局模型、触发器与掩码。
-        仅当 epoch == 100 时生效。
-        """
-        if epoch != 100:
-            return
-        log_dict = {}
-        log_dict['model'] = self.helper.global_model.state_dict()
-        # 保存触发器与掩码
-        try:
-            trigger_to_save = self.attacker.trigger.detach().clone().cpu()
-        except Exception:
-            trigger_to_save = self.attacker.trigger
-        try:
-            mask_to_save = self.attacker.mask.detach().clone().cpu()
-        except Exception:
-            mask_to_save = self.attacker.mask
-        log_dict['trigger'] = trigger_to_save
-        log_dict['mask'] = mask_to_save
-
-        save_dir = '/Data/JLY/Our_Method/visualization/poison_model'
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        file_name = f"{self.helper.config.attack_type}_{self.helper.config.model}_{self.helper.config.poison_start_epoch}_{self.helper.config.agg_method}_beta-1.pt"
-        save_path = os.path.join(save_dir, file_name)
-        torch.save(log_dict, save_path)
-        print(f'Poison artifacts saved at {save_path}')
-
-
-    def _save_ood_orth_to_csv(self, epoch, angle):
-        """
-        将OOD梯度正交性测试结果保存到CSV文件中。
-        """
-        filename = f"../saved/Attack_Orth_Angle_record/CosAngle_{self.helper.config.dataset}_{self.helper.config.agg_method}_100测试集数据.csv"
-        file_exists = os.path.isfile(filename)
-        
-        try:
-            with open(filename, 'a', newline='', encoding='utf-8') as csvfile:
-                # 使用新的表头
-                fieldnames = ['epoch', 'angle']
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                
-                if not file_exists:
-                    writer.writeheader()
-                
-                writer.writerow({
-                    'epoch': epoch,
-                    # 'cosine_similarity': cosine_similarity,
-                    'angle': angle
-                })
-        except IOError as e:
-            print(f"错误：无法写入CSV文件 {filename}。")
-            print(f"I/O error: {e}")

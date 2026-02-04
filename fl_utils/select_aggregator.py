@@ -71,9 +71,6 @@ class Aggregator:
             return feddmc_aggregate(global_model, weight_accumulator_by_client, sampled_participants, self.helper, 
                                   self.feddmc_malicious_records, self.feddmc_window_size, self.feddmc_vote_threshold)
         elif self.helper.config.agg_method == 'alignins':
-            # AlignIns 方式：需要传入 sampled_participants 以便必要时获取客户端编号
             return alignins_aggregate(global_model, weight_accumulator_by_client, sampled_participants, self.helper)
-        elif self.helper.config.agg_method == 'indicator':
-            return indicator_defense(global_model, weight_accumulator, weight_accumulator_by_client, sampled_participants, self.helper, epoch)
         else:
             raise NotImplementedError(f"Aggregation method '{self.helper.config.agg_method}' not implemented") 

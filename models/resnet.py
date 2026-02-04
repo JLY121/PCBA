@@ -135,91 +135,6 @@ class ResNet(SimpleNet):
         x = self.relu(self.bn1(self.conv1(x)))
         return x
 
-
-class ResNet_v2(SimpleNet):
-    def __init__(self, block, num_blocks, num_classes=10, name=None, created_time=None, in_channels=3):  #添加一个参数in_channels
-        super(ResNet_v2, self).__init__()
-        self.in_planes = 32
-
-        # 修改第一个卷积层以支持动态输入通道数
-        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(32)
-        self.layer1 = self._make_layer(block, 32, num_blocks[0], stride=1)
-        self.layer2 = self._make_layer(block, 64, num_blocks[1], stride=2)
-        self.layer3 = self._make_layer(block, 128, num_blocks[2], stride=2)
-        self.layer4 = self._make_layer(block, 256, num_blocks[3], stride=2)
-        self.linear_1 = nn.Linear(256*block.expansion, 128)
-        self.linear_2 = nn.Linear(128, 64)
-        self.linear_3 = nn.Linear(64, 32)
-        self.linear_4 = nn.Linear(32, num_classes)
-        self.relu = nn.ReLU(inplace=True)
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-
-    def switch_grads(self, enable=True):
-        for i, p in self.named_parameters():
-            p.requires_grad_(enable)
-    # 内部方法，构建残差块
-    def _make_layer(self, block, planes, num_blocks, stride):
-        strides = [stride] + [1]*(num_blocks-1)
-        layers = []
-        for stride in strides:
-            layers.append(block(self.in_planes, planes, stride))
-            self.in_planes = planes * block.expansion
-        return nn.Sequential(*layers)
-
-    def features(self, x):
-        out1 = self.relu(self.bn1(self.conv1(x)))
-        out2 = self.layer1(out1)
-        out3 = self.layer2(out2)
-        out4 = self.layer3(out3)
-        out5 = self.layer4(out4)
-        out5 = out5.view(out5.size()[0], -1)
-        return out5
-
-    def forward(self, x):
-        out = self.relu(self.bn1(self.conv1(x)))
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
-        out = self.avgpool(out) # 这里与Chameleon略有区别
-        out = out.view(out.size(0), -1)
-        out = self.linear_1(out) # 128
-        out = self.linear_2(out) # 64   
-        out = self.linear_3(out) # 32
-        out = self.linear_4(out) # num_classes
-        return out
-
-    def forward_embedding(self, x):
-        out = self.relu(self.bn1(self.conv1(x)))
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
-        out = F.avg_pool2d(out, 4)
-        out = out.view(out.size(0), -1)
-        return out
-
-    def forward_embedding_tsne(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.layer1(out)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = self.layer4(out)
-        out = self.avgpool(out)
-        out = out.view(out.size(0), -1)
-        out = self.linear_1(out) # 128
-        out = self.linear_2(out) # 64   
-        out = self.linear_3(out) # 32
-        out = self.linear_4(out) # num_classes
-        # out = torch.flatten(out, 1)    
-        # out = F.normalize(out, dim=1) 
-        return out
-
-    def first_activations(self, x):  # 获取第一个卷积层的输出
-        x = self.relu(self.bn1(self.conv1(x)))
-        return x
-
 #  =======================实现对比学习模型================================
 class SupConResNet_backbone(SimpleNet):
     def __init__(self, block, num_blocks, num_classes=10, name=None, created_time=None, in_channels=3):
@@ -274,10 +189,7 @@ def SupConResNet101(name=None, created_time=None, num_classes=10, in_channels=3)
     return SupConResNet_backbone(Bottleneck, [3,4,23,3],name='{0}_SupConResNet_101'.format(name), created_time=created_time, in_channels=in_channels)
 #====================================================================================================
 def ResNet18(name=None, created_time=None, num_classes=10, in_channels=3): #添加一个参数in_channels
-    return ResNet(BasicBlock, [2,2,2,2],name='{0}_ResNet_18'.format(name), created_time=created_time, num_classes=num_classes, in_channels=in_channels) #将in_channels传入ResNet类
-
-def ResNet18_v2(name=None, created_time=None, num_classes=10, in_channels=3): #添加一个参数in_channels
-    return ResNet_v2(BasicBlock, [2,2,2,2],name='{0}_ResNet_18_v2'.format(name), created_time=created_time, num_classes=num_classes, in_channels=in_channels)
+    return ResNet(BasicBlock, [2,2,2,2],name='{0}_ResNet_18'.format(name), created_time=created_time, num_classes=num_classes, in_channels=in_channels) 
 
 def ResNet34(name=None, created_time=None, num_classes=10, in_channels=3):
     return ResNet(BasicBlock, [3,4,6,3],name='{0}_ResNet_34'.format(name), created_time=created_time, num_classes=num_classes, in_channels=in_channels)

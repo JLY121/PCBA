@@ -15,7 +15,6 @@ from .deep import deepsight_aggregate_global_model_v2
 from .foolsgold import foolsgold_aggregate
 from .flame import flame_aggregate
 from .feddmc import feddmc_aggregate
-from .indicator import indicator_defense
 from .alignIns import alignins_aggregate
 
 __all__ = [
@@ -35,6 +34,5 @@ __all__ = [
     'foolsgold_aggregate',
     'flame_aggregate',
     'feddmc_aggregate',
-    'indicator_defense',
     'alignins_aggregate'
 ] 
