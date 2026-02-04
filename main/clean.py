@@ -38,22 +38,14 @@ def setup_wandb(config_path, sweep):
         config = sweep_configuration['parameters']
         d = dict()
         for k in config.keys():
-            v = config[k][list(config[k].keys())[0]]  #取出 'value' 或 'values' 的值
-            if type(v) is list:  # 如果 v 是一个列表，则只取列表的第一个值作为默认值
+            v = config[k][list(config[k].keys())[0]]  
+            if type(v) is list:  
                 d[k] = {'value':v[0]}
             else:
                 d[k] = {'value':v}  
         yaml.dump(d, open('./yamls/tmp.yaml','w', encoding='utf-8'))
         wandb.init(
-                # project = "Attack_Experiments",
-                # project = "Attack_Experiments_TinyImageNet",
-                # project = "Attack_Experiments_GTSRB",
-                # project = "Attack_Experiments_cifar100",
-                # project = "pretrain",
-                project = "Ablation_Study",
-                # project = "Our_method_test",
-                # project = "find_attack_round",
-
+                project = "Our_method_test",
                 name = str(config['attack_type']['value']) + '_' + \
                         str(config['dataset']['value']) + '_' + \
                         str(config['model']['value'])+ '_' + \
@@ -71,18 +63,16 @@ def set_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
-        # 设置这个更为重要，因为它会为所有GPU设置种子
         torch.cuda.manual_seed_all(seed) 
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
 def main(params):
-    run = wandb.init(mode="offline") # ←设置为了offline模式
-    # run = wandb.init() 
+    run = wandb.init(mode="offline") # if you want use wandb for record, set "mode="online""
     set_seed(wandb.config.seed)
     helper = Helper(wandb.config)
     fler = FLer(helper)
-    fler.train() #===训练程序===#
+    fler.train() 
 
 
 if __name__ == '__main__':
@@ -92,12 +82,10 @@ if __name__ == '__main__':
     parser.add_argument('--sweep', action = 'store_true')
     args = parser.parse_args()
     torch.cuda.set_device(int(args.gpu))
-    #===wandb的初始化在该函数中实现===
     sweep_id = setup_wandb(args.params, args.sweep)
 
     print("sweep_id:",sweep_id)
-    if args.sweep:  #===如果是sweep的话，就用wandb.agent来运行===
+    if args.sweep:  
         wandb.agent(sweep_id, function=main, count=1)
     else:
-        # main()
-        main(args.params)  #===这里传入的是一个文件路径===
+        main(args.params)

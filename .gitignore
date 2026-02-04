@@ -1,4 +1,5 @@
 /main/datasets/**
 /main/wandb/**
+**/__pycache__/
 
 
