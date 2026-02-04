@@ -1,0 +1,91 @@
+program: sweep_interface.py
+method: grid
+name: clean
+metric:
+    name: bkd_acc
+    goal: maximize
+parameters:
+    attack_type:
+        value: 'BadNets'  # A3FL/BadNets/Chameleon/Neurotoxin/Our
+    dataset:
+        value: 'cifar10' 
+    in_channels:         
+        value: 3
+    image_size:         
+        value: 32
+    model:
+        value: 'resnet18'
+    agg_method:
+        value: 'avg'
+    is_poison:
+        value: true
+    load_benign_model:
+        value: true
+    two_stage_training:  # 后门注入时是否先进行良性训练
+        value: false
+    seed:
+        value: 0
+    lr:
+        value: 0.01
+    gamma:
+        value: 1
+    lr_method:
+        value: 'linear' # linear/exp/warmup_cosine
+    target_lr:
+        value: 0.02
+    momentum: 
+        value: 0.9
+    decay: 
+        value: 0.0005
+    batch_size:
+        value: 128
+    test_batch_size:
+        value: 1024
+    num_worker:
+        value: 0
+    poison_start_epoch:
+        value: 1900 #  ←  随时准备攻击，但只有在is_poison为True时才会真正开始攻击
+    epochs:          # 总的训练轮次
+        value: 1100 
+    poison_epochs:   #===攻击训练轮次===
+        value: 100
+    num_total_participants:    #参与FL的总客户端数
+        value: 100
+    num_adversaries:           #恶意客户端数
+        value: 1
+    num_sampled_participants:  #每轮参与FL的客户端数
+        value: 10
+    sample_method:             #客户端选择策略
+        value: 'random'
+    sample_poison_ratio:   #random_update中每轮参与FL的恶意客户端数
+        value: 0
+    dirichlet_alpha:
+        value: 0.9
+    retrain_times:
+        value: 2
+    attacker_retrain_times:
+        value: 2
+    save_every:                #每隔多少轮保存一次模型
+        value: 3005
+    trigger_size_h:
+        value: 7     # 触发器的高度
+    trigger_size_w:
+        value: 7     # 触发器的宽度
+    attacker_method:
+        value: 'sin-adv'
+    malicious_update_method:
+        value: 'label'
+    clip_factor:
+        value: 1
+    attacker_lr_decay:
+        value: 5
+    target_class:         # target class
+        value: 2
+    bkd_ratio:            # poison ratio
+        value: 0.25      
+    adv_loss:
+        value: 'ce'
+    wp_factor:
+        value: 0.05
+    
+

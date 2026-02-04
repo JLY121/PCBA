@@ -1,0 +1,115 @@
+program: sweep_interface.py
+method: grid
+name: clean
+metric:
+    name: bkd_acc
+    goal: maximize
+parameters:
+    attack_type:
+        value: 'Chameleon'  # A3FL/BadNets/Chameleon/Neurotoxin/Our
+    dataset:
+        value: 'cifar100' 
+    in_channels:         
+        value: 3
+    image_size:         
+        value: 32
+    model:
+        value: 'resnet18'
+    agg_method:
+        value: 'alignins' # avg/clip/multi_krum/crfl/foolsgold/flame/feddmc/alignins
+    is_poison:
+        value: true
+    load_benign_model:
+        value: true
+    two_stage_training:  # 后门注入时是否先进行良性训练
+        value: false
+    seed:
+        value: 321
+    lr:
+        value: 0.01
+    gamma:
+        value: 1
+    lr_method:
+        value: 'linear' # linear/exp/warmup_cosine
+        # value: 'warmup_cosine'
+    target_lr:
+        value: 0.02
+    momentum: 
+        value: 0.9
+    decay: 
+        value: 0.0005
+    batch_size:
+        value: 64
+    test_batch_size:
+        value: 1024
+    num_worker:
+        value: 0
+    poison_start_epoch:
+        value: 1100 #  ←  随时准备攻击，但只有在is_poison为True时才会真正开始攻击
+    epochs:          # 总的训练轮次
+        value: 3101
+    poison_epochs:   #===攻击训练轮次===
+        value: 100
+    num_total_participants:    #参与FL的总客户端数
+        value: 100
+    num_adversaries:           #恶意客户端数
+        value: 3
+    num_sampled_participants:  #每轮参与FL的客户端数
+        value: 10
+    sample_method:             #客户端选择策略
+        value: 'random'
+    sample_poison_ratio:   #random_update中每轮参与FL的恶意客户端数
+        value: 0
+    dirichlet_alpha:
+        value: 0.9
+    retrain_times:
+        value: 2
+    attacker_retrain_times:
+        value: 2
+    save_every:                #每隔多少轮保存一次模型
+        value: 3005
+    attacker_method:
+        value: 'sin-adv'
+    malicious_update_method:
+        value: 'label'
+    clip_factor:
+        value: 1
+    attacker_lr_decay:
+        value: 5
+    target_class:         # target class
+        value: 2
+    bkd_ratio:            # poison ratio
+        value: 0.5    
+    adv_loss:
+        value: 'ce'
+    wp_factor:
+        value: 0.05
+    # ---Chameleon攻击相关参数---
+    pattern_type:           # 触发器模式类型：1-简单四点模式，2-复杂十字模式，3-矩形块状模式
+        value: 2
+    pattern_diffusion:      # 触发器扩散系数（仅在pattern_type=2时使用）
+        value: 0.0
+    trigger_size_h:         # 触发器高度（仅在pattern_type=3时使用）
+        value: 7
+    trigger_size_w:         # 触发器宽度（仅在pattern_type=3时使用）
+        value: 7
+    SupCon_round1:    
+        value: 10     # Encoder部分训练
+    SupCon_round2:
+        value: 3       # 分类器部分训练
+    scale_weight:
+        value: 6     # 提高中毒图像与促进者的权重（攻击标签对应的样本）
+    down_scale_weight:
+        value: 1     # 降低中毒图像与非促进者的权重（源类别对应的样本）
+    SupCon_lr1:
+        value: 0.005
+    SupCon_lr2:
+        value: 0.001
+# ----连续攻击的参数设置----
+    continuous_attack:       # 是否开启连续攻击
+        value: false
+    continuous_attack_epochs:  # 连续攻击轮次
+        value: 40
+    
+    
+
